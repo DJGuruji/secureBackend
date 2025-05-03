@@ -3,9 +3,10 @@ import os
 import tempfile
 import shutil
 import logging
+import time
 from typing import Dict, Any
 from app.services.semgrep_service import run_semgrep
-from app.services.supabase_service import store_scan_results
+from app.services.supabase_service import store_scan_results, get_scan_history, get_scan_by_id
 from app.core.security import calculate_security_score, count_severities
 from app.core.config import get_settings
 
@@ -18,6 +19,8 @@ def process_upload(file: UploadFile) -> Dict[str, Any]:
     """Process the uploaded file and return vulnerability results."""
     try:
         logger.info(f"Processing file: {file.filename}")
+        start_time = time.time()
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, file.filename)
             
@@ -36,11 +39,16 @@ def process_upload(file: UploadFile) -> Dict[str, Any]:
             total_vulnerabilities = len(vulnerabilities)
             security_score = calculate_security_score(vulnerabilities)
             
+            scan_duration = time.time() - start_time
+            
             return {
                 "vulnerabilities": vulnerabilities,
                 "severity_count": severity_count,
                 "total_vulnerabilities": total_vulnerabilities,
-                "security_score": security_score
+                "security_score": security_score,
+                "scan_duration": scan_duration,
+                "tool_version": "semgrep-latest",
+                "environment": os.getenv("ENVIRONMENT", "development")
             }
             
     except Exception as e:
@@ -75,6 +83,30 @@ async def upload_file(file: UploadFile = File(...)):
         
     except Exception as e:
         logger.error(f"Error in upload_file: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/history")
+async def get_history(limit: int = 10, offset: int = 0):
+    """Retrieve scan history with pagination."""
+    try:
+        return get_scan_history(limit, offset)
+    except Exception as e:
+        logger.error(f"Error retrieving scan history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/scan/{scan_id}")
+async def get_scan(scan_id: str):
+    """Retrieve a specific scan by ID."""
+    try:
+        return get_scan_by_id(scan_id)
+    except Exception as e:
+        logger.error(f"Error retrieving scan: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
