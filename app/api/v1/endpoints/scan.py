@@ -33,7 +33,11 @@ def process_upload(file: UploadFile) -> Dict[str, Any]:
                 vulnerabilities = run_semgrep(temp_dir)
             else:
                 vulnerabilities = run_semgrep(file_path)
-                
+
+            # Ensure top-level severity field for each vulnerability
+            for vuln in vulnerabilities:
+                vuln['severity'] = vuln.get('extra', {}).get('severity', 'info')
+
             # Calculate metrics
             severity_count = count_severities(vulnerabilities)
             total_vulnerabilities = len(vulnerabilities)
