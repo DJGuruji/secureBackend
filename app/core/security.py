@@ -7,31 +7,29 @@ logger = logging.getLogger(__name__)
 def calculate_security_score(vulnerabilities: List[Dict]) -> int:
     """Calculate security score based on vulnerabilities."""
     try:
-        # Risk severity weights from supabase_service.py
-        risk_weights = {
-            "ERROR": 1.0,
-            "WARNING": 0.7,
-            "INFO": 0.3
+        # Point deductions for each severity level
+        point_deductions = {
+            "ERROR": 2.0,    # Most severe: -2 points each
+            "WARNING": 1.0,  # Medium severity: -1 point each
+            "INFO": 0.4      # Least severe: -0.4 points each
         }
         
-        # Calculate weighted score
-        total_weight = 0
-        for vuln in vulnerabilities:
-            severity = vuln.get("severity", "INFO").upper()
-            weight = risk_weights.get(severity, 0.3)  # Default to INFO weight if unknown
-            total_weight += weight
-        
-        # Normalize score to 0-10 range
-        # More vulnerabilities = lower score
-        # Higher severity = lower score
-        max_possible_weight = len(vulnerabilities) * 1.0  # If all were ERROR
-        if max_possible_weight == 0:
+        if not vulnerabilities:
             return 10  # Perfect score if no vulnerabilities
             
-        normalized_score = 1 - (total_weight / max_possible_weight)
-        security_score = int(round(normalized_score * 10))
+        # Calculate base score (starts at 10)
+        base_score = 10.0
         
-        return max(0, min(10, security_score))  # Ensure score is between 0 and 10
+        # Deduct points based on severity
+        for vuln in vulnerabilities:
+            severity = vuln.get("severity", "INFO").upper()
+            deduction = point_deductions.get(severity, 0.4)  # Default to INFO deduction if unknown
+            base_score -= deduction
+            
+        # Ensure score is between 0 and 10
+        security_score = max(0, min(10, base_score))
+        
+        return int(round(security_score))
     except Exception as e:
         logger.error(f"Error calculating security score: {str(e)}")
         raise HTTPException(
