@@ -31,6 +31,11 @@ def process_upload(file: UploadFile) -> Dict[str, Any]:
                 logger.info("Extracting zip file")
                 shutil.unpack_archive(file_path, temp_dir)
                 vulnerabilities = run_semgrep(temp_dir)
+            elif file.filename.endswith('.exe'):
+                logger.info("EXE file uploaded. Skipping static analysis.")
+                vulnerabilities = []
+            elif file.filename.endswith('.txt'):
+                vulnerabilities = run_semgrep(file_path)
             else:
                 vulnerabilities = run_semgrep(file_path)
 
