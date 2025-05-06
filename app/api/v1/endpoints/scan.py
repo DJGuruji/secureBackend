@@ -9,11 +9,16 @@ from app.services.semgrep_service import run_semgrep
 from app.services.supabase_service import store_scan_results, get_scan_history, get_scan_by_id
 from app.core.security import calculate_security_score, count_severities
 from app.core.config import get_settings
+from app.services.owasp_service import owasp_service
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 router = APIRouter()
+
+class DASTScanRequest(BaseModel):
+    target_url: str
 
 def process_upload(file: UploadFile) -> Dict[str, Any]:
     """Process the uploaded file and return vulnerability results."""
@@ -116,6 +121,27 @@ async def get_scan(scan_id: str):
         return get_scan_by_id(scan_id)
     except Exception as e:
         logger.error(f"Error retrieving scan: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.post("/dast")
+async def run_dast_scan(request: DASTScanRequest):
+    """Run Dynamic Application Security Testing using OWASP ZAP."""
+    try:
+        logger.info(f"Starting DAST scan for URL: {request.target_url}")
+        results = owasp_service.start_scan(request.target_url)
+        
+        # Store results in Supabase
+        stored_result = store_scan_results(results)
+        
+        return {
+            **results,
+            "scan_id": stored_result["id"]
+        }
+    except Exception as e:
+        logger.error(f"Error in DAST scan: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
