@@ -1,7 +1,7 @@
 import requests
 import time
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ class OWASPService:
                     severity_count["INFO"]  # Low/Info risk counts as 1
                 )
                 # Convert to 0-10 scale, where 0 is worst and 10 is best
-                security_score = max(0, 10 - (weighted_score / total_alerts))
+                security_score = max(0, round(10 - (weighted_score / total_alerts)))
 
             scan_duration = time.time() - start_time
 
@@ -144,5 +144,45 @@ class OWASPService:
         except Exception as e:
             logger.error(f"Error in OWASP ZAP scan: {str(e)}")
             raise Exception(f"Failed to complete OWASP ZAP scan: {str(e)}")
+
+    def calculate_security_score(self, alerts: List[Dict]) -> float:
+        """Calculate security score based on alerts."""
+        if not alerts:
+            return 10  # Perfect score if no vulnerabilities found
+        
+        # Define weights for different risk levels
+        weights = {
+            'High': 1.0,
+            'Medium': 0.5,
+            'Low': 0.1,
+            'Info': 0.01
+        }
+        
+        # Count alerts by risk level
+        risk_counts = {
+            'High': 0,
+            'Medium': 0,
+            'Low': 0,
+            'Info': 0
+        }
+        
+        for alert in alerts:
+            risk = alert.get('risk', 'Info')
+            if risk in risk_counts:
+                risk_counts[risk] += 1
+        
+        # Calculate weighted score
+        total_weight = sum(risk_counts.values())
+        if total_weight == 0:
+            return 10
+        
+        weighted_score = sum(
+            risk_counts[risk] * weights[risk]
+            for risk in risk_counts
+        )
+        
+        # Calculate final score (10 - weighted average) and round to whole number
+        score = round(10 - (weighted_score / total_weight))
+        return max(0, min(10, score))
 
 owasp_service = OWASPService() 
